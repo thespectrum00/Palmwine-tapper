@@ -3,11 +3,11 @@ from machine import Pin, SPI
 from time import sleep
 
 # SPI pins
-SCK  = 14
-MOSI = 13
-MISO = 12
+SCK  = 18
+MOSI = 23
+MISO = 19
 # Chip select
-CS   = 32
+CS   = 5
 # Receive IRQ
 RX   = 36
 
