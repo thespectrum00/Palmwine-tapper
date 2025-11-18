@@ -2,6 +2,7 @@ from machine import Pin, PWM, SoftI2C
 from time import sleep
 from ulora import LoRa, SPIConfig
 from driver_bts7960 import Bts7960
+from new_motor import CustomMotorDriver
 from servo import Servos
 from dcmotor import DCMotor
 import time
@@ -12,17 +13,20 @@ import time
 
 class ClimbingMotor:
     """Controls the climbing motor via BTS7960 driver"""
-    def __init__(self, rpwm, lpwm, ren, len_):
-        self.motor = Bts7960(rpwm, lpwm, ren, len_)
+    def __init__(self, clk_pin, anti_clk_pin):
+        # self.motor = Bts7960(rpwm, lpwm, ren, len_)
+        self.motor = CustomMotorDriver(clk_pin, anti_clk_pin)
         self.stop()   # ensure safe state at init
 
     def clockwise(self, speed=50):
-        print("[Climbing] Clockwise", speed)
-        self.motor.start(abs(int(speed)))
+        print("[Climbing] Clockwise")
+        # self.motor.start(abs(int(speed)))
+        self.motor.rotate_clockwise()
 
     def anticlockwise(self, speed=50):
-        print("[Climbing] Anticlockwise", speed)
-        self.motor.start(-abs(int(speed)))
+        print("[Climbing] Anticlockwise")
+        # self.motor.start(-abs(int(speed)))
+        self.motor.rotate_anti_clockwise()
 
     def stop(self):
         print("[Climbing] Stop")
@@ -230,7 +234,7 @@ class LoRaServer:
 # =====================
 
 def main():
-    climbing_motor = ClimbingMotor(13, 4, 33, 12)   # BTS7960 pins
+    climbing_motor = ClimbingMotor(25, 26)   # BTS7960 pins
     cutting_motor = CuttingMotor(26, 25, 27)        # L298N pins
     #servo_controller = ServoController()            # PCA9685 servos
 
