@@ -35,109 +35,14 @@ class ClimbingMotor:
         except Exception as e:
             print("[Climbing] stop() exception:", e)
 
-
-class CuttingMotor:
-    """Controls the cutting motor via L298N driver"""
-    def __init__(self, in1, in2, en_pin, freq=15000):
-        self.pwm = PWM(Pin(en_pin), freq)
-        # Ensure PWM starts at 0 duty
-        try:
-            # MicroPython PWM API differs across ports; attempt common methods
-            self.pwm.duty(0)
-        except Exception:
-            try:
-                self.pwm.duty_u16(0)
-            except Exception:
-                pass
-
-        # Provide min/max duty inside DCMotor constructor (as you used)
-        self.motor = DCMotor(Pin(in1, Pin.OUT), Pin(in2, Pin.OUT), self.pwm, 350, 1023)
-        self.stop()  # ensure motor stopped at init
-
-    def start(self, speed=100):
-        print("[Cutting] Start", speed)
-        # You previously found backwards() was needed due to wiring polarity
-        self.motor.backwards(int(speed))
-
-    def stop(self):
-        print("[Cutting] Stop")
-        try:
-            self.motor.stop()
-            # also explicitly set PWM duty to zero
-            try:
-                self.pwm.duty(0)
-            except Exception:
-                try:
-                    self.pwm.duty_u16(0)
-                except Exception:
-                    pass
-        except Exception as e:
-            print("[Cutting] stop() exception:", e)
-
-
-# =====================
-# Servo Controller
-# =====================
-
-class ServoController:
-    """Controls multiple servos via PCA9685"""
-    def __init__(self, scl_pin=22, sda_pin=21, indices=[0, 1, 2, 3]):
-        i2c = SoftI2C(scl=Pin(scl_pin), sda=Pin(sda_pin))
-        self.servos = Servos(i2c, min_us=1280, max_us=2180)
-        self.indices = indices
-        self.previous_angles = {index: 90 for index in indices}
-
-        # Start all servos at neutral (stop)
-        for index in indices:
-            try:
-                self.servos.position(index=index, degrees=90)
-            except Exception as e:
-                print("[Servo] init position exception:", e)
-
-    def rotate(self, index, new_value):
-        """Rotate servo based on encoder change"""
-        if index not in self.previous_angles:
-            print(f"[Servo] Invalid index: {index}")
-            return
-
-        old_value = self.previous_angles[index]
-        print(f"[Servo {index}] {old_value} -> {new_value}")
-
-        if new_value > old_value:
-            print("Clockwise")
-            self.servos.position(index=index, degrees=120)
-        elif new_value < old_value:
-            print("Anticlockwise")
-            self.servos.position(index=index, degrees=60)
-        else:
-            print("Stop")
-            self.servos.position(index=index, degrees=90)
-            return
-
-        # Brief movement, then stop
-        time.sleep(0.15)
-        self.servos.position(index=index, degrees=90)
-
-        # Update state
-        self.previous_angles[index] = new_value
-
-    def neutral_all(self):
-        for i in self.indices:
-            try:
-                self.servos.position(index=i, degrees=90)
-            except Exception as e:
-                print("[Servo] neutral exception:", e)
-
-
 # =====================
 # LoRa Receiver
 # =====================
 
 class LoRaServer:
     """Receives LoRa messages and dispatches motor/servo actions"""
-    def __init__(self, climbing_motor, cutting_motor):
+    def __init__(self, climbing_motor):
         self.climbing_motor = climbing_motor
-        self.cutting_motor = cutting_motor
         
         RFM95_RST = 32
         RFM95_SPIBUS = SPIConfig.esp32_2
@@ -218,13 +123,6 @@ class LoRaServer:
                 # either both 0 or both 1 -> stop to be safe
                 self.climbing_motor.stop()
 
-            # Cutting motor
-            ct = data.get("CT", 0)
-            if ct == 1:
-                self.cutting_motor.start()
-            else:
-                self.cutting_motor.stop()
-
         except Exception as e:
             print("Button Parse Error:", e)
 
@@ -234,21 +132,13 @@ class LoRaServer:
 # =====================
 
 def main():
-    climbing_motor = ClimbingMotor(25, 26)   # BTS7960 pins
-    cutting_motor = CuttingMotor(26, 25, 27)        # L298N pins
-    #servo_controller = ServoController()            # PCA9685 servos
-
-    # Force safe state at startup (extra guarantee)
+    climbing_motor = ClimbingMotor(25, 26)   # BTS7960 pins       # Force safe state at startup (extra guarantee)
     try:
         climbing_motor.stop()
     except Exception:
         pass
-    try:
-        cutting_motor.stop()
-    except Exception:
-        pass
     
-    server = LoRaServer(climbing_motor, cutting_motor)
+    server = LoRaServer(climbing_motor)
 
     print("[System] Server started, waiting for LoRa messages...")
 
